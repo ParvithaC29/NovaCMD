@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI → CMD</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f0f;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 16px;
+    }
+
+    header { text-align: center; margin-bottom: 36px; }
+    header h1 { font-size: 2rem; color: #00d4aa; letter-spacing: 2px; }
+    header p { color: #888; margin-top: 6px; font-size: 0.9rem; }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 28px;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+    .tab {
+      padding: 8px 20px;
+      border-radius: 8px;
+      border: 1px solid #2a2a2a;
+      background: #111;
+      color: #888;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active { background: #00d4aa; color: #000; border-color: #00d4aa; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    label { display: block; font-size: 0.85rem; color: #aaa; margin-bottom: 8px; }
+
+    textarea {
+      width: 100%;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #e0e0e0;
+      font-size: 1rem;
+      padding: 12px 14px;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+      transition: border 0.2s;
+    }
+    textarea:focus { border-color: #00d4aa; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #00d4aa; color: #000; }
+    .btn-success { background: #22c55e; color: #000; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+    .btn-gray    { background: #333; color: #ccc; }
+    .btn:not(:disabled):hover { opacity: 0.85; }
+
+    .actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .section { margin-top: 24px; display: none; }
+    .section.visible { display: block; }
+
+    .section-title {
+      font-size: 0.78rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .command-box {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: 'Consolas', monospace;
+      font-size: 1rem;
+      color: #00d4aa;
+      word-break: break-all;
+    }
+
+    .output-box {
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.88rem;
+      color: #ccc;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .output-box.error { color: #f87171; border-color: #7f1d1d; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .badge-block { background: #7f1d1d; color: #f87171; }
+    .badge-ok    { background: #14532d; color: #4ade80; }
+    .badge-warn  { background: #7c2d12; color: #fb923c; }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid #333;
+      border-top-color: #00d4aa;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Multi-step */
+    .steps-list { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+
+    .step-card {
+      background: #111;
+      border: 1px solid #2a2a2a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.2s;
+    }
+    .step-card.running  { border-color: #00d4aa; }
+    .step-card.done     { border-color: #22c55e; }
+    .step-card.failed   { border-color: #ef4444; }
+    .step-card.blocked  { border-color: #ef4444; opacity: 0.7; }
+    .step-card.skipped  { opacity: 0.5; }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .step-number {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: #222;
+      border: 1px solid #444;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem;
+      color: #888;
+      flex-shrink: 0;
+    }
+    .step-card.done    .step-number { background: #14532d; border-color: #22c55e; color: #4ade80; }
+    .step-card.failed  .step-number { background: #7f1d1d; border-color: #ef4444; color: #f87171; }
+    .step-card.running .step-number { background: #003d33; border-color: #00d4aa; color: #00d4aa; }
+
+    .step-desc { font-size: 0.9rem; color: #ccc; flex: 1; }
+    .step-cmd  {
+      font-family: 'Consolas', monospace;
+      font-size: 0.85rem;
+      color: #00d4aa;
+      background: #0a0a0a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      word-break: break-all;
+    }
+    .step-output {
+      font-family: 'Consolas', monospace;
+      font-size: 0.82rem;
+      color: #aaa;
+      background: #0a0a0a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 150px;
+      overflow-y: auto;
+      display: none;
+    }
+    .step-output.error { color: #f87171; }
+    .step-output.visible { display: block; }
+
+    .step-status {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+    .status-pending  { background: #222; color: #666; }
+    .status-running  { background: #003d33; color: #00d4aa; }
+    .status-done     { background: #14532d; color: #4ade80; }
+    .status-failed   { background: #7f1d1d; color: #f87171; }
+    .status-blocked  { background: #7f1d1d; color: #f87171; }
+    .status-skipped  { background: #222; color: #555; }
+
+    /* History */
+    .history { margin-top: 36px; width: 100%; max-width: 720px; }
+    .history h2 {
+      font-size: 0.85rem; color: #555;
+      text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+    }
+    .history-item {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .history-item span { font-family: 'Consolas', monospace; font-size: 0.88rem; color: #00d4aa; flex: 1; }
+    .history-item small { color: #555; font-size: 0.75rem; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>AI → CMD</h1>
+    <p>Type in plain English. Get Windows commands. Run them safely.</p>
+  </header>
+
+  <div class="card">
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('single')">Single Command</button>
+      <button class="tab" onclick="switchTab('multi')">Multi-Step</button>
+    </div>
+
+    <!-- ── Single Command Tab ── -->
+    <div class="tab-panel active" id="tab-single">
+      <label for="userInput">What do you want to do?</label>
+      <textarea id="userInput" placeholder="e.g. show all files in current folder"></textarea>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="generateBtn" onclick="generate()">
+          <div class="spinner" id="spinner"></div>
+          Generate Command
+        </button>
+      </div>
+
+      <div class="section" id="commandSection">
+        <div class="section-title">Generated Command</div>
+        <div id="statusBadge"></div>
+        <div class="command-box" id="commandBox"></div>
+        <div class="actions" id="confirmActions" style="display:none;">
+          <button class="btn btn-success" onclick="execute()">Run It</button>
+          <button class="btn btn-danger"  onclick="cancel()">Cancel</button>
+        </div>
+      </div>
+
+      <div class="section" id="outputSection">
+        <div class="section-title">Output</div>
+        <div class="output-box" id="outputBox"></div>
+      </div>
+    </div>
+
+    <!-- ── Multi-Step Tab ── -->
+    <div class="tab-panel" id="tab-multi">
+      <label for="multiInput">Describe the full task (multi-step):</label>
+      <textarea id="multiInput" placeholder="e.g. create a folder called demo, create a file inside it, then show its contents"></textarea>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="multiGenerateBtn" onclick="generateSteps()">
+          <div class="spinner" id="multiSpinner"></div>
+          Plan Steps
+        </button>
+      </div>
+
+      <div class="section" id="stepsSection">
+        <div class="section-title">Execution Plan</div>
+        <div class="steps-list" id="stepsList"></div>
+        <div class="actions" id="stepsActions" style="display:none; margin-top:16px;">
+          <button class="btn btn-success" id="runAllBtn" onclick="runAllSteps()">Run All Steps</button>
+          <button class="btn btn-danger"  id="stopBtn"   onclick="stopSteps()" style="display:none;">Stop</button>
+          <button class="btn btn-gray"    onclick="resetSteps()">Reset</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- History -->
+  <div class="history" id="historySection" style="display:none;">
+    <h2>Command History</h2>
+    <div id="historyList"></div>
+  </div>
+
+  <script>
+    // ── Tab switching ──────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll(".tab").forEach((t, i) => {
+        t.classList.toggle("active", ["single","multi"][i] === name);
+      });
+      document.getElementById("tab-single").classList.toggle("active", name === "single");
+      document.getElementById("tab-multi").classList.toggle("active",  name === "multi");
+    }
+
+    // ── Shared helpers ─────────────────────────────────────────────────────────
+    const cmdHistory = [];
+
+    function show(id) {
+      const el = document.getElementById(id);
+      el.classList.add("visible");
+      el.style.display = "";
+    }
+    function hide(id) { document.getElementById(id).classList.remove("visible"); }
+
+    function addHistory(command) {
+      cmdHistory.unshift({ command, time: new Date().toLocaleTimeString() });
+      const section = document.getElementById("historySection");
+      const list    = document.getElementById("historyList");
+      section.style.display = "block";
+      list.innerHTML = cmdHistory.slice(0, 10).map(h => `
+        <div class="history-item">
+          <span>${h.command}</span>
+          <small>${h.time}</small>
+        </div>
+      `).join("");
+    }
+
+    // ── Single command ─────────────────────────────────────────────────────────
+    let currentCommand = null;
+
+    function setLoading(on) {
+      const btn     = document.getElementById("generateBtn");
+      const spinner = document.getElementById("spinner");
+      btn.disabled  = on;
+      spinner.style.display = on ? "block" : "none";
+      btn.childNodes[2].textContent = on ? " Thinking..." : " Generate Command";
+    }
+
+    async function generate() {
+      const input = document.getElementById("userInput").value.trim();
+      if (!input) return;
+      hide("commandSection"); hide("outputSection");
+      document.getElementById("confirmActions").style.display = "none";
+      currentCommand = null;
+      setLoading(true);
+
+      try {
+        const res  = await fetch("/api/generate", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+        });
+        const data = await res.json();
+        show("commandSection");
+
+        if (data.error) {
+          document.getElementById("statusBadge").innerHTML = `<span class="badge badge-block">Error</span>`;
+          document.getElementById("commandBox").textContent = data.error;
+          return;
+        }
+        if (!data.safe) {
+          document.getElementById("statusBadge").innerHTML = `<span class="badge badge-block">Blocked</span>`;
+          document.getElementById("commandBox").textContent = data.reason + (data.command ? `\n${data.command}` : "");
+          return;
+        }
+        currentCommand = data.command;
+        document.getElementById("statusBadge").innerHTML = `<span class="badge badge-ok">Safe</span>`;
+        document.getElementById("commandBox").textContent = data.command;
+        document.getElementById("confirmActions").style.display = "flex";
+      } catch {
+        show("commandSection");
+        document.getElementById("statusBadge").innerHTML = `<span class="badge badge-block">Error</span>`;
+        document.getElementById("commandBox").textContent = "Network error. Is the server running?";
+      } finally { setLoading(false); }
+    }
+
+    async function execute() {
+      if (!currentCommand) return;
+      document.getElementById("confirmActions").style.display = "none";
+      show("outputSection");
+      const box = document.getElementById("outputBox");
+      box.className = "output-box";
+      box.textContent = "Running...";
+
+      try {
+        const res  = await fetch("/api/execute", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ command: currentCommand }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          box.className = "output-box";
+          box.textContent = data.output;
+          addHistory(currentCommand);
+        } else {
+          box.className = "output-box error";
+          box.textContent = data.output || data.error;
+        }
+      } catch {
+        box.className = "output-box error";
+        box.textContent = "Execution failed.";
+      }
+    }
+
+    function cancel() {
+      document.getElementById("confirmActions").style.display = "none";
+      currentCommand = null;
+    }
+
+    document.getElementById("userInput").addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") generate();
+    });
+
+    // ── Multi-step ─────────────────────────────────────────────────────────────
+    let steps = [];
+    let stopRequested = false;
+
+    function setMultiLoading(on) {
+      const btn     = document.getElementById("multiGenerateBtn");
+      const spinner = document.getElementById("multiSpinner");
+      btn.disabled  = on;
+      spinner.style.display = on ? "block" : "none";
+      btn.childNodes[2].textContent = on ? " Planning..." : " Plan Steps";
+    }
+
+    async function generateSteps() {
+      const input = document.getElementById("multiInput").value.trim();
+      if (!input) return;
+
+      hide("stepsSection");
+      steps = [];
+      setMultiLoading(true);
+
+      try {
+        const res  = await fetch("/api/generate-steps", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          show("stepsSection");
+          document.getElementById("stepsList").innerHTML =
+            `<div style="color:#f87171;">${data.error}</div>`;
+          return;
+        }
+
+        steps = data.steps;
+        renderSteps();
+        show("stepsSection");
+        document.getElementById("stepsActions").style.display = "flex";
+      } catch {
+        show("stepsSection");
+        document.getElementById("stepsList").innerHTML =
+          `<div style="color:#f87171;">Network error. Is the server running?</div>`;
+      } finally { setMultiLoading(false); }
+    }
+
+    function renderSteps() {
+      document.getElementById("stepsList").innerHTML = steps.map((s, i) => `
+        <div class="step-card ${s.safe === false ? "blocked" : ""}" id="step-${i}">
+          <div class="step-header">
+            <div class="step-number">${i + 1}</div>
+            <div class="step-desc">${s.description}</div>
+            <span class="step-status ${s.safe === false ? "status-blocked" : "status-pending"}" id="status-${i}">
+              ${s.safe === false ? "Blocked" : "Pending"}
+            </span>
+          </div>
+          <div class="step-cmd">${s.command}</div>
+          ${s.safe === false ? `<div style="font-size:0.8rem;color:#f87171;">${s.reason}</div>` : ""}
+          <div class="step-output" id="output-${i}"></div>
+        </div>
+      `).join("");
+    }
+
+    function updateStep(i, state, output = null) {
+      const card   = document.getElementById(`step-${i}`);
+      const status = document.getElementById(`status-${i}`);
+      const outEl  = document.getElementById(`output-${i}`);
+
+      card.className   = `step-card ${state}`;
+      status.className = `step-status status-${state}`;
+      status.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+
+      if (output !== null) {
+        outEl.textContent = output;
+        outEl.className   = `step-output visible${state === "failed" ? " error" : ""}`;
+      }
+    }
+
+    async function runAllSteps() {
+      stopRequested = false;
+      document.getElementById("runAllBtn").style.display  = "none";
+      document.getElementById("stopBtn").style.display    = "inline-flex";
+
+      for (let i = 0; i < steps.length; i++) {
+        if (stopRequested) { updateStep(i, "skipped"); continue; }
+
+        const step = steps[i];
+        if (!step.safe) { continue; }
+
+        updateStep(i, "running");
+        document.getElementById(`step-${i}`).scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+        try {
+          const res  = await fetch("/api/execute", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ command: step.command }),
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            updateStep(i, "done", data.output);
+            addHistory(step.command);
+          } else {
+            updateStep(i, "failed", data.output || data.error);
+            stopRequested = true;
+          }
+        } catch {
+          updateStep(i, "failed", "Network error.");
+          stopRequested = true;
+        }
+      }
+
+      document.getElementById("runAllBtn").style.display = "inline-flex";
+      document.getElementById("stopBtn").style.display   = "none";
+    }
+
+    function stopSteps() { stopRequested = true; }
+
+    function resetSteps() {
+      stopRequested = false;
+      renderSteps();
+      document.getElementById("runAllBtn").style.display = "inline-flex";
+      document.getElementById("stopBtn").style.display   = "none";
+    }
+
+    document.getElementById("multiInput").addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") generateSteps();
+    });
+  </script>
+
+</body>
+</html>
